@@ -31,7 +31,7 @@ Remap or bind any of them at `chrome://extensions/shortcuts` or `edge://extensio
 ## Now playing
 
 - The toolbar icon shows a small play/pause mark and opens a panel with artwork, title, artist, transport controls, like, repost, mute, and a SoundCloud-style waveform. Hover it for the time at the cursor; click to seek.
-- When a new track starts, the panel opens by itself for a few seconds, and a system notification shows the artwork, title and artist with Next and Like buttons. Both can be turned off, and the notification can be limited to when you are not looking at the SoundCloud tab.
+- When a new track starts, the panel appears in a small floating window for a few seconds without taking focus from what you are doing, and a system notification shows the artwork, title and artist with Next and Like buttons. Both can be turned off, and the notification can be limited to when you are not looking at the SoundCloud tab.
 
 SoundCloud's player bar no longer shows whether the current track is reposted, so the panel reads that from the track's own page when it is open, and otherwise remembers your own repost toggles. A track you reposted before installing shows as not reposted until you open its page.
 

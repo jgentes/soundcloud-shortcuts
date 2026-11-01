@@ -24,6 +24,15 @@ html,
 body {
   margin: 0;
   width: 340px;
+}
+/* In the floating window the viewport is a little wider than the panel. */
+html.toast,
+html.toast body {
+  width: 100%;
+  min-height: 100%;
+}
+html,
+body {
   background: var(--bg);
   color: var(--fg);
   font: 12px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

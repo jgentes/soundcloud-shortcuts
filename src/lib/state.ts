@@ -50,6 +50,8 @@ export const STATE_KEY = "state";
 
 /** Set by the worker right before it opens the popup automatically. */
 export const AUTO_OPEN_KEY = "autoOpen";
+/** Session-storage key holding the id of the floating now-playing window, if open. */
+export const TOAST_WINDOW_KEY = "toastWindowId";
 export interface AutoOpen {
   at: number;
   /** Seconds until the popup closes itself; 0 keeps it open. */

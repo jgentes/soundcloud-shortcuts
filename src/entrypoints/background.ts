@@ -11,6 +11,7 @@ import {
 import { loadSettings, type Settings } from "@/lib/settings";
 import {
   AUTO_OPEN_KEY,
+  TOAST_WINDOW_KEY,
   loadState,
   rememberWaveform,
   saveState,
@@ -46,6 +47,12 @@ export default defineBackground(() => {
           .catch((error) => sendResponse({ ok: false, detail: String(error) }));
         return true; // async response
     }
+  });
+
+  chrome.windows.onRemoved.addListener((windowId) => {
+    void chrome.storage.session.get(TOAST_WINDOW_KEY).then((stored) => {
+      if (stored[TOAST_WINDOW_KEY] === windowId) return chrome.storage.session.remove(TOAST_WINDOW_KEY);
+    });
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
@@ -199,24 +206,65 @@ async function onStateReport(tabId: number, incoming: NowPlaying | null): Promis
   }
 }
 
+/** Outer size of the floating panel window: the 340x126 panel plus the frame. */
+const TOAST_WIDTH = 356;
+const TOAST_HEIGHT = 168;
+const TOAST_MARGIN = 16;
+
 /**
- * Open the toolbar popup programmatically. Needs Chrome 127+ (Edge equivalent)
- * and a focused browser window; otherwise the browser rejects it.
+ * Show the now-playing panel in a small window of its own, without focus.
+ * The toolbar popup would steal focus (and close as soon as it lost it), so
+ * an unfocused popup-type window is used instead; it closes itself after the
+ * configured delay. If one is already open it is reused and its timer reset.
  */
 async function openPanel(settings: Settings): Promise<void> {
-  const action = chrome.action as typeof chrome.action & {
-    openPopup?: (options?: { windowId?: number }) => Promise<void>;
-  };
-  if (typeof action.openPopup !== "function") return;
   try {
-    const win = await chrome.windows.getLastFocused();
-    // Tell the popup it was opened automatically so it can close itself.
+    // Tell the panel it was opened automatically so it can close itself.
     await chrome.storage.session.set({
       [AUTO_OPEN_KEY]: { at: Date.now(), closeAfter: settings.panelAutoCloseSeconds },
     });
-    await action.openPopup(win.id !== undefined ? { windowId: win.id } : undefined);
+    if (await toastWindowExists()) return;
+
+    let left: number | undefined;
+    let top: number | undefined;
+    try {
+      const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+      if (win.left !== undefined && win.width !== undefined) {
+        left = win.left + win.width - TOAST_WIDTH - TOAST_MARGIN;
+      }
+      if (win.top !== undefined && win.height !== undefined) {
+        top = win.top + win.height - TOAST_HEIGHT - TOAST_MARGIN;
+      }
+    } catch {
+      /* no normal window; the browser picks a position */
+    }
+    const created = await chrome.windows.create({
+      url: chrome.runtime.getURL("popup.html?toast=1"),
+      type: "popup",
+      focused: false,
+      width: TOAST_WIDTH,
+      height: TOAST_HEIGHT,
+      left,
+      top,
+    });
+    if (created?.id !== undefined) {
+      await chrome.storage.session.set({ [TOAST_WINDOW_KEY]: created.id });
+    }
   } catch (error) {
     console.warn("[sc-shortcuts] could not open panel:", error);
+  }
+}
+
+async function toastWindowExists(): Promise<boolean> {
+  const stored = await chrome.storage.session.get(TOAST_WINDOW_KEY);
+  const id = stored[TOAST_WINDOW_KEY] as number | undefined;
+  if (id === undefined) return false;
+  try {
+    await chrome.windows.get(id);
+    return true;
+  } catch {
+    await chrome.storage.session.remove(TOAST_WINDOW_KEY);
+    return false;
   }
 }
 
