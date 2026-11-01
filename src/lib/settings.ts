@@ -7,8 +7,6 @@ export interface Settings {
   openTabIfNone: boolean;
   /** Seconds moved by seek-forward / seek-backward. */
   seekStep: number;
-  /** Briefly show a badge on the toolbar icon when a command fails. */
-  showErrorBadge: boolean;
   /** Show a system notification when a new track starts. */
   notifyOnTrackChange: boolean;
   /** Only notify when the SoundCloud tab is not the one being looked at. */
@@ -25,7 +23,6 @@ export const DEFAULT_SETTINGS: Settings = {
   tabTargeting: "audible-first",
   openTabIfNone: false,
   seekStep: 10,
-  showErrorBadge: true,
   notifyOnTrackChange: true,
   notifyOnlyWhenHidden: false,
   showStateBadge: true,
@@ -46,7 +43,6 @@ export async function saveSettings(settings: Settings): Promise<void> {
 
 const BOOLEAN_KEYS = [
   "openTabIfNone",
-  "showErrorBadge",
   "notifyOnTrackChange",
   "notifyOnlyWhenHidden",
   "showStateBadge",

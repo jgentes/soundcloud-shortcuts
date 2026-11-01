@@ -29,7 +29,6 @@ export default defineBackground(() => {
     if (!isCommand(command)) return;
     void handleCommand(command).catch((error) => {
       console.error("[sc-shortcuts] command failed", command, error);
-      void flashBadge("!", "#d32f2f");
     });
   });
 
@@ -86,11 +85,7 @@ async function handleCommand(command: Command): Promise<void> {
   const tab = await findTargetTab(settings);
 
   if (!tab?.id) {
-    if (settings.openTabIfNone) {
-      await chrome.tabs.create({ url: SOUNDCLOUD_HOME });
-    } else if (settings.showErrorBadge) {
-      await flashBadge("?", "#616161");
-    }
+    if (settings.openTabIfNone) await chrome.tabs.create({ url: SOUNDCLOUD_HOME });
     return;
   }
 
@@ -105,10 +100,7 @@ async function handleCommand(command: Command): Promise<void> {
     command,
     seekStep: settings.seekStep,
   });
-  if (!result?.ok) {
-    console.warn("[sc-shortcuts]", command, result?.detail);
-    if (settings.showErrorBadge) await flashBadge("!", "#d32f2f");
-  }
+  if (!result?.ok) console.warn("[sc-shortcuts]", command, result?.detail);
 }
 
 async function injectIntoOpenTabs(): Promise<void> {
@@ -303,12 +295,4 @@ async function tabIsBeingViewed(tabId: number): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function flashBadge(text: string, color: string): Promise<void> {
-  await chrome.action.setBadgeBackgroundColor({ color });
-  await chrome.action.setBadgeText({ text });
-  setTimeout(() => {
-    void loadState().then((s) => setStateBadge(s.nowPlaying));
-  }, 1500);
 }

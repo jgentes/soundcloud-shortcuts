@@ -35,7 +35,7 @@ Remap or bind any of them at `chrome://extensions/shortcuts` or `edge://extensio
 
 SoundCloud's player bar no longer shows whether the current track is reposted, so the panel reads that from the track's own page when it is open, and otherwise remembers your own repost toggles. A track you reposted before installing shows as not reposted until you open its page.
 
-Settings (gear in the panel): which SoundCloud tab receives commands when several are open, seek step, open soundcloud.com if no tab exists, error badge, notification and badge toggles.
+Settings (gear in the panel): which SoundCloud tab receives commands when several are open, seek step, open soundcloud.com if no tab exists, notification and badge toggles.
 
 ## Privacy
 

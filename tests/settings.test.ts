@@ -15,14 +15,12 @@ describe("normalizeSettings", () => {
         tabTargeting: "first",
         seekStep: 5,
         openTabIfNone: true,
-        showErrorBadge: false,
       }),
     ).toEqual({
       ...DEFAULT_SETTINGS,
       tabTargeting: "first",
       seekStep: 5,
       openTabIfNone: true,
-      showErrorBadge: false,
     });
   });
 

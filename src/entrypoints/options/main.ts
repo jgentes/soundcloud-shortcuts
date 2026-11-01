@@ -5,7 +5,6 @@ const SHORTCUTS_URL = isEdge ? "edge://extensions/shortcuts" : "chrome://extensi
 
 const BOOLEAN_KEYS = [
   "openTabIfNone",
-  "showErrorBadge",
   "showStateBadge",
   "notifyOnTrackChange",
   "notifyOnlyWhenHidden",
