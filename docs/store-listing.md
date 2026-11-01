@@ -119,4 +119,5 @@ The API can only update an extension that was first published through Partner Ce
 
 - Automatic: push a `vX.Y.Z` tag.
 - Manual: Actions → Release → Run workflow on `main` to resubmit the current source without creating a GitHub release (handy after a rejection that only needs listing changes, or to retry a failed upload).
+- Neither store accepts a submission while an earlier one is still in review (Edge: `InProgressSubmission`; Chrome: `ITEM_NOT_UPDATABLE`). The build and GitHub release still succeed, so once the earlier version is live, open the failed run in Actions and click "Re-run failed jobs"; it reuses that run's zips.
 - Both stores require the version to be higher than the one they serve. The Edge job checks the store first and skips with a notice when the version is already live; the Chrome job fails with Google's error in that case.
