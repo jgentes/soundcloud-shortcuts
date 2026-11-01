@@ -73,8 +73,9 @@ export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") void chrome.runtime.openOptionsPage();
     // Tabs that were already open keep an orphaned copy of the old content
-    // script, so inject the new one to resume now-playing reports.
-    void injectIntoOpenTabs();
+    // script, so inject the new one to resume now-playing reports. Not on a
+    // browser update: restored tabs load their own copy then.
+    if (details.reason === "install" || details.reason === "update") void injectIntoOpenTabs();
   });
 });
 

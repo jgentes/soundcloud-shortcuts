@@ -10,26 +10,56 @@ import {
 import type { NowPlaying, Waveform } from "@/lib/state";
 import { extractWaveformUrl, isWaveformJson } from "@/lib/waveform";
 
+/** Handle left on the (isolated-world) window so a later copy can replace this one. */
+interface Instance {
+  dispose(): void;
+}
+declare global {
+  interface Window {
+    __scShortcutsInstance?: Instance;
+  }
+}
+
 export default defineContentScript({
   matches: ["https://soundcloud.com/*"],
   runAt: "document_idle",
   main() {
-    chrome.runtime.onMessage.addListener(
-      (message: Message, _sender, sendResponse: (r: CommandResult) => void) => {
-        switch (message.type) {
-          case "sc-shortcuts/ping":
-            sendResponse({ ok: true });
-            return;
-          case "sc-shortcuts/command":
-            sendResponse(safely(() => runCommand(message.command, message.seekStep)));
-            return;
-          case "sc-shortcuts/seek-to":
-            sendResponse(safely(() => seekToFraction(message.fraction)));
-            return;
-        }
-      },
-    );
+    // Exactly one live copy per tab. A second copy can arrive when on-demand
+    // injection races the page's own script during load, or when the worker
+    // re-injects after an update; two copies would answer every command and
+    // click the player twice, so play/pause toggled back and forth.
+    try {
+      window.__scShortcutsInstance?.dispose();
+    } catch {
+      /* an orphaned copy from a previous extension version; nothing to do */
+    }
+
+    const listener = (message: Message, _sender: unknown, sendResponse: (r: CommandResult) => void) => {
+      switch (message.type) {
+        case "sc-shortcuts/ping":
+          sendResponse({ ok: true });
+          return;
+        case "sc-shortcuts/command":
+          sendResponse(safely(() => runCommand(message.command, message.seekStep)));
+          return;
+        case "sc-shortcuts/seek-to":
+          sendResponse(safely(() => seekToFraction(message.fraction)));
+          return;
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
     watchPlayer();
+
+    window.__scShortcutsInstance = {
+      dispose() {
+        try {
+          chrome.runtime.onMessage.removeListener(listener);
+        } catch {
+          /* context already invalidated */
+        }
+        shutdown();
+      },
+    };
   },
 });
 
