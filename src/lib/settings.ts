@@ -30,7 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   seekStep: 10,
   showStateBadge: true,
   openPanelOnTrackChange: false,
-  panelAutoCloseSeconds: 5,
+  panelAutoCloseSeconds: 8,
   overlayPrompted: false,
 };
 
