@@ -11,7 +11,7 @@ export default defineConfig({
       // WXT copies the overlay script's matches into host_permissions even
       // though it is injected at runtime. Keep <all_urls> optional only, so
       // installing does not warn about access to all sites.
-      manifest.host_permissions = manifest.host_permissions?.filter((p) => p !== "<all_urls>");
+      manifest.host_permissions = manifest.host_permissions?.filter((p: string) => p !== "<all_urls>");
     },
   },
   manifest: {
