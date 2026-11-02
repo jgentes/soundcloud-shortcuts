@@ -35,7 +35,7 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ panelAutoCloseSeconds: 0 }).panelAutoCloseSeconds).toBe(0);
     expect(normalizeSettings({ panelAutoCloseSeconds: -3 }).panelAutoCloseSeconds).toBe(0);
     expect(normalizeSettings({ panelAutoCloseSeconds: 500 }).panelAutoCloseSeconds).toBe(60);
-    expect(normalizeSettings({}).panelAutoCloseSeconds).toBe(5);
+    expect(normalizeSettings({}).panelAutoCloseSeconds).toBe(8);
   });
 
   it("clamps and rounds the seek step", () => {
