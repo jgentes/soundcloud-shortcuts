@@ -18,7 +18,7 @@ export default defineConfig({
     name: "Shortcuts for SoundCloud",
     short_name: "SC Shortcuts",
     description:
-      "Keyboard shortcuts for SoundCloud from any tab, plus a now-playing panel with a seekable waveform that can pop up when the track changes.",
+      "Keyboard shortcuts for SoundCloud from any tab, plus a now-playing panel with a seekable waveform that pops up on track change.",
     homepage_url: "https://github.com/jgentes/soundcloud-shortcuts",
     permissions: ["scripting", "storage"],
     host_permissions: ["https://soundcloud.com/*"],
