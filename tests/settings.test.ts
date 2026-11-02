@@ -24,11 +24,11 @@ describe("normalizeSettings", () => {
     });
   });
 
-  it("accepts the notification toggles", () => {
+  it("accepts the boolean toggles", () => {
     expect(
-      normalizeSettings({ notifyOnTrackChange: false, notifyOnlyWhenHidden: false, showStateBadge: false }),
-    ).toMatchObject({ notifyOnTrackChange: false, notifyOnlyWhenHidden: false, showStateBadge: false });
-    expect(normalizeSettings({ notifyOnTrackChange: "yes" }).notifyOnTrackChange).toBe(true);
+      normalizeSettings({ openTabIfNone: true, showStateBadge: false, openPanelOnTrackChange: true }),
+    ).toMatchObject({ openTabIfNone: true, showStateBadge: false, openPanelOnTrackChange: true });
+    expect(normalizeSettings({ showStateBadge: "yes" }).showStateBadge).toBe(true);
   });
 
   it("clamps the panel auto-close delay, allowing 0", () => {

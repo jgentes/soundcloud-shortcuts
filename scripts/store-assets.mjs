@@ -79,6 +79,26 @@ async function previewOf(file, settings) {
   return html.replace('<script type="module"', stub(settings) + '<script type="module"', 1).replace(/src="\/icon\//g, 'src="icon/');
 }
 await writeFile(join(build, "popup-preview.html"), await previewOf("popup.html"));
+await writeFile(
+  join(build, "card-preview.html"),
+  `<!doctype html><html><head><meta charset="utf-8"><style>
+  body{margin:0;padding:36px 40px;font:16px/1.6 Georgia,serif;color:#222;background:#fff}
+  h2{font:600 26px "Segoe UI",system-ui;margin:0 0 6px}p{margin:0 0 14px;color:#444}
+  textarea{width:100%;height:150px;font:16px Georgia,serif;padding:10px;border:1px solid #ccc;border-radius:6px}
+  </style></head><body>
+  <h2>Weekly notes</h2>
+  <p>Any page you are working on. The card appears in the corner while you keep typing.</p>
+  <textarea>Draft agenda for Thursday: budget review, hiring plan, Q3 roadmap|</textarea>
+  <script>
+  window.chrome = { runtime: { sendMessage: async () => {}, onMessage: { addListener(fn) { window.__listener = fn; }, removeListener() {} } } };
+  </script>
+  <script src="content-scripts/overlay.js"></script>
+  <script>
+  const state = ${JSON.stringify(track)}; state.updatedAt = Date.now(); state.position = 71;
+  window.__listener({ type: "sc-shortcuts/overlay-show", closeAfter: 0, state,
+    waveform: { trackKey: state.trackKey, samples: ${JSON.stringify(samples)}, height: 140 } }, null, () => {});
+  </script></body></html>`,
+);
 await writeFile(join(build, "options-preview.html"), await previewOf("options.html", { openPanelOnTrackChange: true, overlayPrompted: true }));
 
 /* ---------- static server over the build dir + scenes ---------- */
@@ -156,22 +176,14 @@ scenes.set(
 );
 
 scenes.set(
-  "/scene-notify.html",
+  "/scene-card.html",
   shell(
     `<h1>Know when the <b>next track</b> starts</h1>
-     <p class="sub">A notification with artwork, title and artist appears when a new track begins, with Next and Like right on it. Or let the panel open itself for a few seconds.</p>
-     <div class="card toast" style="left:740px;top:290px;width:420px;padding:18px 20px">
-       <img src="${track.artworkUrl}">
-       <div class="t">
-         <div class="title">${track.title}</div>
-         <div class="artist">${track.artist}</div>
-         <div class="ctx">Now playing on SoundCloud</div>
-         <div class="btns"><span>Next</span><span>Like</span></div>
-       </div>
+     <p class="sub">When a new track begins, the panel slides into the corner of whatever page you are on, then fades away. It never takes focus, so you keep typing.</p>
+     <div class="card page" style="left:620px;top:120px;width:600px;height:560px">
+       <iframe src="/card-preview.html" width="600" height="560"></iframe>
      </div>`,
-    `.toast{display:flex;gap:16px;background:#232323}.toast img{width:84px;height:84px;border-radius:8px}
-     .toast .title{font-size:19px;font-weight:600}.toast .artist{font-size:16px;color:#cfcfcf;margin-top:2px}.toast .ctx{font-size:13px;color:#8a8a8a;margin-top:6px}
-     .btns{display:flex;gap:10px;margin-top:14px}.btns span{padding:7px 18px;border-radius:6px;background:#3a3a3a;font-size:14px}`,
+    `.page{background:#fff}`,
   ),
 );
 
@@ -179,7 +191,7 @@ scenes.set(
   "/scene-options.html",
   shell(
     `<h1>Tune it to <b>how you listen</b></h1>
-     <p class="sub">Choose which tab gets your commands, the seek step, notifications, and whether the panel pops up on its own and closes after a few seconds.</p>
+     <p class="sub">Choose which tab gets your commands, the seek step, and whether the panel pops up on its own and fades after a few seconds.</p>
      <div class="card" style="left:620px;top:130px;width:620px;height:540px">
        <iframe src="/options-preview.html#settings" width="620" height="1400" style="transform:translateY(-560px)"></iframe>
      </div>`,
@@ -230,7 +242,7 @@ const browser = await chromium.launch();
 const shots = [
   ["scene-shortcuts", "screenshot-1-shortcuts.png", 1280, 800],
   ["scene-panel", "screenshot-2-now-playing.png", 1280, 800],
-  ["scene-notify", "screenshot-3-notification.png", 1280, 800],
+  ["scene-card", "screenshot-3-card.png", 1280, 800],
   ["scene-options", "screenshot-4-options.png", 1280, 800],
   ["promo-tile", "promo-tile-440x280.png", 440, 280],
   ["marquee", "marquee-1400x560.jpg", 1400, 560], // Chrome accepts JPEG or PNG

@@ -18,9 +18,9 @@ export default defineConfig({
     name: "Shortcuts for SoundCloud",
     short_name: "SC Shortcuts",
     description:
-      "Keyboard shortcuts for SoundCloud from any tab, plus a now-playing panel with a seekable waveform and track notifications.",
+      "Keyboard shortcuts for SoundCloud from any tab, plus a now-playing panel with a seekable waveform that can pop up when the track changes.",
     homepage_url: "https://github.com/jgentes/soundcloud-shortcuts",
-    permissions: ["scripting", "storage", "notifications"],
+    permissions: ["scripting", "storage"],
     host_permissions: ["https://soundcloud.com/*"],
     // Granted only if the user turns on the in-page now-playing card, which
     // is drawn into whatever page they are looking at when a track changes.

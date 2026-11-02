@@ -24,7 +24,6 @@ import { SOUNDCLOUD_URL_PATTERN, pickTargetTab } from "@/lib/tab-picker";
 const SOUNDCLOUD_HOME = "https://soundcloud.com/";
 const CONTENT_SCRIPT = "content-scripts/soundcloud.js";
 const OVERLAY_SCRIPT = "content-scripts/overlay.js";
-const NOTIFICATION_ID = "sc-shortcuts/now-playing";
 
 export default defineBackground(() => {
   chrome.commands.onCommand.addListener((command) => {
@@ -60,17 +59,6 @@ export default defineBackground(() => {
         await setStateBadge(null);
       }
     })();
-  });
-
-  chrome.notifications.onClicked.addListener((id) => {
-    if (id !== NOTIFICATION_ID) return;
-    chrome.notifications.clear(id);
-    void handleCommand("focus-tab");
-  });
-
-  chrome.notifications.onButtonClicked.addListener((id, index) => {
-    if (id !== NOTIFICATION_ID) return;
-    void handleCommand(index === 0 ? "next" : "like");
   });
 
   chrome.runtime.onInstalled.addListener((details) => {
@@ -185,34 +173,23 @@ async function onStateReport(tabId: number, incoming: NowPlaying | null): Promis
     nowPlaying: incoming,
     tabId: incoming ? tabId : null,
     waveforms: current.waveforms ?? {},
-    notifiedKey: current.notifiedKey ?? null,
+    announcedKey: current.announcedKey ?? null,
   };
 
   const settings = await loadSettings();
   // A new track is announced once it is actually playing. SoundCloud often
   // reports the new track in a paused/loading state first, so compare against
   // the last announced track rather than the previous report.
-  const isNewTrack = !!incoming && incoming.playing && incoming.trackKey !== next.notifiedKey;
-  if (isNewTrack && settings.notifyOnTrackChange) {
-    next.notifiedKey = incoming.trackKey;
-  }
+  const isNewTrack = !!incoming && incoming.playing && incoming.trackKey !== next.announcedKey;
+  if (isNewTrack) next.announcedKey = incoming.trackKey;
   await saveState(next);
 
   if (settings.showStateBadge) await setStateBadge(incoming);
+  if (!settings.openPanelOnTrackChange) return;
   if (isNewTrack && incoming) {
-    if (settings.notifyOnTrackChange) {
-      const result = await notifyTrack(tabId, incoming, settings);
-      if (!result.ok) console.warn("[sc-shortcuts] notification failed:", result.detail);
-    }
-    if (settings.openPanelOnTrackChange) await showOverlay(settings, incoming);
+    await showOverlay(settings, incoming, next.waveforms[incoming.trackKey]);
   } else {
-    if (incoming?.artworkData && incoming.trackKey === next.notifiedKey) {
-      // Artwork arrived after the notification was shown; refresh its icon.
-      await updateNotificationIcon(incoming);
-    }
-    if (settings.openPanelOnTrackChange && overlayRelevantChange(current.nowPlaying, incoming)) {
-      await updateOverlay(incoming);
-    }
+    await updateOverlay(incoming);
   }
 }
 
@@ -221,7 +198,11 @@ async function onStateReport(tabId: number, incoming: NowPlaying | null): Promis
  * its own would either steal focus or sit behind the active window, so the
  * card goes into the page instead, which needs the optional all-sites access.
  */
-async function showOverlay(settings: Settings, state: NowPlaying): Promise<void> {
+async function showOverlay(
+  settings: Settings,
+  state: NowPlaying,
+  waveform: Waveform | undefined,
+): Promise<void> {
   try {
     if (!(await hasOverlayPermission())) return;
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -230,6 +211,7 @@ async function showOverlay(settings: Settings, state: NowPlaying): Promise<void>
     await sendToOverlay(tab.id, {
       type: "sc-shortcuts/overlay-show",
       state,
+      waveform,
       closeAfter: settings.panelAutoCloseSeconds,
     });
   } catch (error) {
@@ -242,13 +224,13 @@ function overlayAllowedOn(url: string): boolean {
   return /^(https?|file):/.test(url) && !/^https:\/\/(www\.)?soundcloud\.com\//.test(url);
 }
 
-/** Keep a visible card in step with play/pause and like changes. */
-async function updateOverlay(state: NowPlaying | null): Promise<void> {
+/** Keep a visible card in step with play/pause, seeks, likes and late waveforms. */
+async function updateOverlay(state: NowPlaying | null, waveform?: Waveform): Promise<void> {
   const stored = await chrome.storage.session.get(OVERLAY_TAB_KEY);
   const tabId = stored[OVERLAY_TAB_KEY] as number | undefined;
   if (tabId === undefined) return;
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "sc-shortcuts/overlay-state", state });
+    await chrome.tabs.sendMessage(tabId, { type: "sc-shortcuts/overlay-state", state, waveform });
   } catch {
     // Tab navigated or closed; stop sending to it.
     await chrome.storage.session.remove(OVERLAY_TAB_KEY);
@@ -270,21 +252,13 @@ async function sendToOverlay(tabId: number, message: OverlayShowMessage): Promis
   if (!(await delivered())) throw new Error("overlay script did not answer");
 }
 
-/** The card shows play state, artwork, title and like state; ignore position ticks. */
-function overlayRelevantChange(prev: NowPlaying | null, next: NowPlaying | null): boolean {
-  if (!prev || !next) return prev !== next;
-  return (
-    prev.trackKey !== next.trackKey ||
-    prev.playing !== next.playing ||
-    prev.liked !== next.liked ||
-    (prev.artworkData ?? null) !== (next.artworkData ?? null)
-  );
-}
-
 async function onWaveform(_tabId: number, waveform: Waveform): Promise<void> {
   // Keyed by track, so ordering against state reports does not matter.
   const current = await loadState();
   await saveState({ ...current, waveforms: rememberWaveform(current.waveforms ?? {}, waveform) });
+  if (current.nowPlaying?.trackKey === waveform.trackKey) {
+    await updateOverlay(current.nowPlaying, waveform);
+  }
 }
 
 /** Swap the toolbar icon for a variant with a small play/pause mark in the corner. */
@@ -298,62 +272,4 @@ async function setStateBadge(state: NowPlaying | null): Promise<void> {
   await chrome.action.setTitle({
     title: state ? `${state.title} — ${state.artist}` : "Shortcuts for SoundCloud",
   });
-}
-
-async function notifyTrack(
-  tabId: number,
-  state: NowPlaying,
-  settings: Settings,
-): Promise<CommandResult> {
-  if (settings.notifyOnlyWhenHidden && (await tabIsBeingViewed(tabId))) {
-    return { ok: true, detail: "skipped: SoundCloud tab is being viewed" };
-  }
-  const result = await createNotification({
-    type: "basic",
-    iconUrl: state.artworkData ?? chrome.runtime.getURL("icon/128.png"),
-    title: state.title,
-    message: state.artist,
-    contextMessage: "Now playing on SoundCloud",
-    buttons: [{ title: "Next" }, { title: state.liked ? "Unlike" : "Like" }],
-    silent: true,
-  });
-  return result;
-}
-
-async function updateNotificationIcon(state: NowPlaying): Promise<void> {
-  if (!state.artworkData) return;
-  await new Promise<void>((resolve) => {
-    chrome.notifications.update(NOTIFICATION_ID, { iconUrl: state.artworkData }, () => {
-      void chrome.runtime.lastError;
-      resolve();
-    });
-  });
-}
-
-/** Create (replacing any previous) and report errors instead of swallowing them. */
-function createNotification(
-  options: chrome.notifications.NotificationCreateOptions,
-): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    chrome.notifications.clear(NOTIFICATION_ID, () => {
-      void chrome.runtime.lastError;
-      chrome.notifications.create(NOTIFICATION_ID, options, (id) => {
-        const error = chrome.runtime.lastError?.message;
-        if (error) resolve({ ok: false, detail: error });
-        else if (!id) resolve({ ok: false, detail: "browser returned no notification id" });
-        else resolve({ ok: true });
-      });
-    });
-  });
-}
-
-async function tabIsBeingViewed(tabId: number): Promise<boolean> {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab.active || tab.windowId === undefined) return false;
-    const win = await chrome.windows.get(tab.windowId);
-    return !!win.focused;
-  } catch {
-    return false;
-  }
 }

@@ -47,6 +47,7 @@ export default defineContentScript({
       if (card && card.host.isConnected) return card;
       card = createOverlayCard({
         onCommand: (command) => invoke({ type: "sc-shortcuts/invoke", command }),
+        onSeek: (fraction) => invoke({ type: "sc-shortcuts/invoke", seekTo: fraction }),
         onDismiss: () => card?.hide(),
         onOpen: (url) => window.open(url, "_blank", "noopener"),
       });
@@ -66,6 +67,7 @@ export default defineContentScript({
           const c = ensureCard();
           closeAfter = message.closeAfter;
           c.update(message.state);
+          c.setWaveform(message.waveform ?? null);
           c.show();
           armHide();
           sendResponse({ ok: true });
@@ -73,8 +75,12 @@ export default defineContentScript({
         }
         case "sc-shortcuts/overlay-state":
           if (card?.visible) {
-            if (message.state) card.update(message.state);
-            else card.hide();
+            if (message.state) {
+              card.update(message.state);
+              if (message.waveform) card.setWaveform(message.waveform);
+            } else {
+              card.hide();
+            }
           }
           sendResponse({ ok: true });
           return;

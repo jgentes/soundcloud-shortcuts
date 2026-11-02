@@ -10,7 +10,7 @@ export interface NowPlaying {
   artistUrl: string;
   /** Small artwork URL as shown in the player bar, or null if none. */
   artworkUrl: string | null;
-  /** Artwork as a data URL (filled in asynchronously), for popup and notifications. */
+  /** Artwork as a data URL (filled in asynchronously), for the popup and card. */
   artworkData?: string;
   playing: boolean;
   /** Seconds. */
@@ -35,15 +35,15 @@ export interface Waveform {
   height: number;
 }
 
-/** State persisted by the worker so popup and notifications survive worker restarts. */
+/** State persisted by the worker so the popup and card survive worker restarts. */
 export interface StoredState {
   nowPlaying: NowPlaying | null;
   /** Tab that reported `nowPlaying`. */
   tabId: number | null;
   /** Waveforms by trackKey, most recent last. Kept so returning to a track redraws instantly. */
   waveforms: Record<string, Waveform>;
-  /** Track the last notification was shown for, so a track is announced once. */
-  notifiedKey?: string | null;
+  /** Track the card was last shown for, so a track is announced once. */
+  announcedKey?: string | null;
 }
 
 export const STATE_KEY = "state";

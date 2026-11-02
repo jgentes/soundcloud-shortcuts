@@ -1,5 +1,6 @@
 import type { Command } from "./messages";
-import type { NowPlaying } from "./state";
+import { formatTime, type NowPlaying, type Waveform } from "./state";
+import { downsample, drawWaveform, type WaveformColors } from "./waveform";
 
 /**
  * The now-playing card drawn into an ordinary web page when a track changes.
@@ -10,6 +11,8 @@ import type { NowPlaying } from "./state";
 export interface OverlayHandlers {
   /** A transport or like button was pressed. */
   onCommand(command: Command): void;
+  /** The waveform was clicked at this fraction of the track. */
+  onSeek(fraction: number): void;
   /** The close button was pressed. */
   onDismiss(): void;
   /** Title or artwork was clicked; open the track. */
@@ -18,14 +21,23 @@ export interface OverlayHandlers {
 
 export interface OverlayCard {
   host: HTMLElement;
-  /** Refresh the text and button states. */
+  /** Refresh the text, button states and playhead. */
   update(state: NowPlaying): void;
+  /** Supply (or replace) the waveform peaks for the current track. */
+  setWaveform(waveform: Waveform | null): void;
   /** Slide the card in. */
   show(): void;
   /** Fade the card out. */
   hide(): void;
   readonly visible: boolean;
 }
+
+export const CARD_WIDTH = 340;
+const WAVE_WIDTH = 268;
+const WAVE_HEIGHT = 36;
+const BAR_WIDTH = 2;
+const GAP = 1;
+const BARS = Math.floor((WAVE_WIDTH + GAP) / (BAR_WIDTH + GAP));
 
 const ICONS = {
   previous: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h2v12H3V2zm10 0v12L6 8l7-6z"/></svg>',
@@ -44,7 +56,6 @@ const STYLE = `
   bottom: 16px;
   z-index: 2147483647;
   pointer-events: none;
-  font: 12px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light dark;
 }
 .card {
@@ -54,14 +65,16 @@ const STYLE = `
   --border: #e5e5e5;
   --accent: #ff5500;
   --chip: #f0f0f0;
+  position: relative;
   box-sizing: border-box;
-  width: 320px;
+  width: ${CARD_WIDTH}px;
+  max-width: calc(100vw - 32px);
   /* Set here, not on :host: page rules with !important still reach the host element. */
   font: 12px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 10px 10px 12px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg);
@@ -87,6 +100,11 @@ const STYLE = `
 }
 .card * {
   box-sizing: border-box;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .artwork {
   flex: 0 0 auto;
@@ -181,6 +199,42 @@ const STYLE = `
 .icon.active {
   color: var(--accent);
 }
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.time {
+  flex: 0 0 30px;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.time.total {
+  text-align: right;
+}
+.wave {
+  position: relative;
+  flex: 1;
+  cursor: pointer;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: ${WAVE_HEIGHT}px;
+}
+.hover-time {
+  position: absolute;
+  top: -14px;
+  transform: translateX(-50%);
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .close {
   position: absolute;
   top: -8px;
@@ -200,8 +254,8 @@ const STYLE = `
 .card:hover .close {
   opacity: 1;
 }
-.card {
-  position: relative;
+[hidden] {
+  display: none !important;
 }
 `;
 
@@ -217,6 +271,23 @@ function button(className: string, title: string, icon: string): HTMLButtonEleme
   return el;
 }
 
+function colors(): WaveformColors {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  return {
+    played: ["#ff5500", "#ff2200"],
+    hover: "#ff8c4b",
+    unplayed: dark ? "#4a4a4a" : "#cfcfcf",
+    reflection: dark ? 0.45 : 0.35,
+  };
+}
+
+/** Position now, interpolated from the last report while playing. */
+export function livePosition(np: NowPlaying, now = Date.now()): number {
+  if (!np.playing) return np.position;
+  const elapsed = (now - np.updatedAt) / 1000;
+  return Math.min(np.duration, np.position + elapsed);
+}
+
 export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
   const host = document.createElement("div");
   host.id = "sc-shortcuts-now-playing";
@@ -228,6 +299,9 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
   card.className = "card";
   card.setAttribute("role", "status");
   card.setAttribute("aria-live", "polite");
+
+  const head = document.createElement("div");
+  head.className = "head";
 
   const artwork = button("artwork", "Open track", "");
   const img = document.createElement("img");
@@ -251,22 +325,48 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
   const next = button("icon", "Next", ICONS.next);
   const like = button("icon", "Like", ICONS.like);
   controls.append(previous, play, next, like);
+  head.append(artwork, meta, controls);
+
+  const timeline = document.createElement("div");
+  timeline.className = "timeline";
+  const timePassed = document.createElement("span");
+  timePassed.className = "time";
+  timePassed.textContent = "0:00";
+  const wave = document.createElement("div");
+  wave.className = "wave";
+  const canvas = document.createElement("canvas");
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(WAVE_WIDTH * dpr);
+  canvas.height = Math.round(WAVE_HEIGHT * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx?.scale(dpr, dpr);
+  const hoverTip = document.createElement("div");
+  hoverTip.className = "hover-time";
+  hoverTip.hidden = true;
+  wave.append(canvas, hoverTip);
+  const timeTotal = document.createElement("span");
+  timeTotal.className = "time total";
+  timeTotal.textContent = "0:00";
+  timeline.append(timePassed, wave, timeTotal);
 
   const close = button("icon close", "Dismiss", ICONS.close);
 
-  card.append(artwork, meta, controls, close);
+  card.append(head, timeline, close);
   root.append(style, card);
 
   let current: NowPlaying | null = null;
+  let peaks: number[] = new Array<number>(BARS).fill(0.12);
+  let hover: number | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  let tickTimer: ReturnType<typeof setTimeout> | null = null;
   let visible = false;
 
-  const open = (url: string) => () => {
-    if (url) handlers.onOpen(url);
-  };
   artwork.addEventListener("click", () => current && handlers.onOpen(current.trackUrl));
   title.addEventListener("click", () => current && handlers.onOpen(current.trackUrl));
-  artist.addEventListener("click", () => current && open(current.artistUrl || current.trackUrl)());
+  artist.addEventListener(
+    "click",
+    () => current && handlers.onOpen(current.artistUrl || current.trackUrl),
+  );
   previous.addEventListener("click", () => handlers.onCommand("previous"));
   next.addEventListener("click", () => handlers.onCommand("next"));
   like.addEventListener("click", () => {
@@ -274,12 +374,61 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
     handlers.onCommand("like");
   });
   play.addEventListener("click", () => {
-    if (current) update({ ...current, playing: !current.playing });
+    if (current) {
+      update({ ...current, position: livePosition(current), playing: !current.playing, updatedAt: Date.now() });
+    }
     handlers.onCommand("play-pause");
   });
   close.addEventListener("click", () => handlers.onDismiss());
 
+  const fractionAt = (e: MouseEvent): number => {
+    const rect = canvas.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  };
+  wave.addEventListener("mousedown", (e) => e.preventDefault());
+  wave.addEventListener("mousemove", (e) => {
+    hover = fractionAt(e);
+    if (current) {
+      hoverTip.hidden = false;
+      hoverTip.textContent = formatTime(hover * current.duration);
+      hoverTip.style.left = `${e.clientX - wave.getBoundingClientRect().left}px`;
+    }
+    tick();
+  });
+  wave.addEventListener("mouseleave", () => {
+    hover = null;
+    hoverTip.hidden = true;
+    tick();
+  });
+  wave.addEventListener("click", (e) => {
+    if (!current) return;
+    const fraction = fractionAt(e);
+    current = { ...current, position: fraction * current.duration, updatedAt: Date.now() };
+    tick();
+    handlers.onSeek(fraction);
+  });
+
+  function tick(): void {
+    if (tickTimer) clearTimeout(tickTimer);
+    tickTimer = null;
+    if (!current) return;
+    const pos = livePosition(current);
+    timePassed.textContent = formatTime(pos);
+    const progress = current.duration > 0 ? pos / current.duration : 0;
+    if (ctx) {
+      drawWaveform(ctx, peaks, WAVE_WIDTH, WAVE_HEIGHT, {
+        progress,
+        hover,
+        barWidth: BAR_WIDTH,
+        gap: GAP,
+        colors: colors(),
+      });
+    }
+    if (current.playing && visible) tickTimer = setTimeout(tick, 250);
+  }
+
   function update(state: NowPlaying): void {
+    if (current && current.trackKey !== state.trackKey) setWaveform(null);
     current = state;
     const src = state.artworkData ?? state.artworkUrl ?? "";
     img.hidden = !src;
@@ -294,6 +443,16 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
     like.classList.toggle("active", state.liked);
     like.title = state.liked ? "Unlike" : "Like";
     like.setAttribute("aria-label", like.title);
+    timeTotal.textContent = formatTime(state.duration);
+    tick();
+  }
+
+  function setWaveform(waveform: Waveform | null): void {
+    // No peaks yet: a flat bar still shows the playhead position.
+    peaks = waveform
+      ? downsample(waveform.samples, waveform.height, BARS)
+      : new Array<number>(BARS).fill(0.12);
+    tick();
   }
 
   function show(): void {
@@ -301,6 +460,7 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
     hideTimer = null;
     host.hidden = false;
     visible = true;
+    tick();
     // Next frame, so the transition runs from the hidden state.
     requestAnimationFrame(() => card.classList.add("visible"));
   }
@@ -309,6 +469,8 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
     if (!visible) return;
     visible = false;
     card.classList.remove("visible");
+    if (tickTimer) clearTimeout(tickTimer);
+    tickTimer = null;
     hideTimer = setTimeout(() => {
       if (!visible) host.hidden = true;
     }, 220);
@@ -318,6 +480,7 @@ export function createOverlayCard(handlers: OverlayHandlers): OverlayCard {
   return {
     host,
     update,
+    setWaveform,
     show,
     hide,
     get visible() {

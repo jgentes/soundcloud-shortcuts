@@ -13,8 +13,8 @@ Shortcuts for SoundCloud is a browser extension that adds keyboard shortcuts and
 
 ## What is stored
 
-- **Your settings** (shortcut behavior, notification and panel preferences) are stored using the browser's extension storage. If you are signed in to your browser, the browser may sync these settings between your devices. The developer never receives them.
-- **The current track** (title, artist, artwork, playback position) is kept in the browser's session storage so the panel and notifications can show it. It is cleared when the browser closes.
+- **Your settings** (shortcut behavior and panel preferences) are stored using the browser's extension storage. If you are signed in to your browser, the browser may sync these settings between your devices. The developer never receives them.
+- **The current track** (title, artist, artwork, playback position) is kept in the browser's session storage so the panel can show it. It is cleared when the browser closes.
 
 ## What is not collected
 
@@ -25,7 +25,6 @@ The extension has no analytics, no telemetry, no accounts, no advertising, and n
 - **Access to soundcloud.com**: to control the player and read what is playing.
 - **Scripting**: to connect to a soundcloud.com tab that was already open when the extension was installed or updated.
 - **Storage**: to save your settings and the current track.
-- **Notifications**: to show an optional notification when a new track starts.
 
 ## Open source
 

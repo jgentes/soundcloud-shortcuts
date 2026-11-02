@@ -7,10 +7,6 @@ export interface Settings {
   openTabIfNone: boolean;
   /** Seconds moved by seek-forward / seek-backward. */
   seekStep: number;
-  /** Show a system notification when a new track starts. */
-  notifyOnTrackChange: boolean;
-  /** Only notify when the SoundCloud tab is not the one being looked at. */
-  notifyOnlyWhenHidden: boolean;
   /** Show play/pause state on the toolbar icon badge. */
   showStateBadge: boolean;
   /** Draw a now-playing card into the page being viewed when a new track starts. */
@@ -32,8 +28,6 @@ export const DEFAULT_SETTINGS: Settings = {
   tabTargeting: "audible-first",
   openTabIfNone: false,
   seekStep: 10,
-  notifyOnTrackChange: true,
-  notifyOnlyWhenHidden: false,
   showStateBadge: true,
   openPanelOnTrackChange: false,
   panelAutoCloseSeconds: 5,
@@ -53,8 +47,6 @@ export async function saveSettings(settings: Settings): Promise<void> {
 
 const BOOLEAN_KEYS = [
   "openTabIfNone",
-  "notifyOnTrackChange",
-  "notifyOnlyWhenHidden",
   "showStateBadge",
   "openPanelOnTrackChange",
   "overlayPrompted",

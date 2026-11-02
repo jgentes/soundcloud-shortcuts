@@ -29,7 +29,7 @@ Screenshots use fictional track names and generated artwork, no third-party mate
 Shortcuts for SoundCloud
 
 ### Short description (Chrome: 132 chars max; Edge: 250)
-Keyboard shortcuts for SoundCloud from any tab, plus a now-playing panel with a seekable waveform and new-track notifications.
+Keyboard shortcuts for SoundCloud from any tab, plus a now-playing panel with a seekable waveform that can pop up when the track changes.
 
 ### Description
 Keyboard shortcuts for soundcloud.com that work no matter which tab you are on, plus a compact now-playing panel.
@@ -38,7 +38,7 @@ SHORTCUTS
 Defaults: Alt+Shift+P play/pause, Alt+Shift+. next, Alt+Shift+, previous, Alt+Shift+L like. Seek, volume, mute, repost, shuffle, repeat and "switch to the SoundCloud tab" can be bound too. Change any shortcut at chrome://extensions/shortcuts (Edge: edge://extensions/shortcuts). On macOS use Option instead of Alt.
 
 NOW PLAYING
-Click the toolbar icon for a panel with artwork, title, artist, play/pause, previous/next, like, repost, mute, and a waveform you can click to seek. The icon shows play/pause state. When a new track starts you can get a system notification with Next and Like buttons, or a small now-playing card that slides into the corner of the page you are viewing for a few seconds without taking focus (optional; asks once for access to all sites).
+Click the toolbar icon for a panel with artwork, title, artist, play/pause, previous/next, like, repost, mute, and a waveform you can click to seek. The icon shows play/pause state. Optionally, when a new track starts the same panel slides into the corner of the page you are viewing for a few seconds without taking focus (asks once for access to all sites).
 
 When several SoundCloud tabs are open, the one that is playing gets the command.
 
@@ -65,10 +65,9 @@ Control and display the soundcloud.com player from the browser toolbar and keybo
 
 **Permission justifications**
 - `scripting`: inject the control script into a soundcloud.com tab that was already open when the extension was installed or updated, so shortcuts and the panel work without reloading the page.
-- `storage`: save the user's settings (synced by the browser) and keep the currently playing track in session storage for the panel and notifications.
-- `notifications`: show an optional notification with the track's artwork, title and artist when a new track starts, with Next and Like buttons.
+- `storage`: save the user's settings (synced by the browser) and keep the currently playing track in session storage for the panel.
 - Host permission `https://soundcloud.com/*`: find the SoundCloud tab, read the player bar (track, position, like state) and click the player's own controls.
-- Optional host permission `<all_urls>`: only requested if the user turns on the now-playing card. When a track changes, a small card with the track's artwork, title, artist and play/next/like buttons is drawn into the page the user is currently viewing, so they see what started without a focus-stealing window. Nothing is read from those pages.
+- Optional host permission `<all_urls>`: only requested if the user turns on the now-playing card. When a track changes, a small card with the track's artwork, title, artist, play/next/like buttons and seekable waveform is drawn into the page the user is currently viewing, so they see what started without a focus-stealing window. Nothing is read from those pages.
 
 **Remote code**: No, the extension does not use remote code.
 

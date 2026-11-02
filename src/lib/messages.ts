@@ -62,6 +62,7 @@ export interface WaveformMessage {
 export interface OverlayShowMessage {
   type: "sc-shortcuts/overlay-show";
   state: NowPlaying;
+  waveform?: Waveform;
   /** Seconds until the card hides itself; 0 keeps it until dismissed. */
   closeAfter: number;
 }
@@ -70,6 +71,8 @@ export interface OverlayShowMessage {
 export interface OverlayStateMessage {
   type: "sc-shortcuts/overlay-state";
   state: NowPlaying | null;
+  /** Sent when the waveform for the current track arrives. */
+  waveform?: Waveform;
 }
 
 /** Popup / overlay → worker: user pressed a control. */

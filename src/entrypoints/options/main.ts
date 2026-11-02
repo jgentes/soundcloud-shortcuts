@@ -12,8 +12,6 @@ const SHORTCUTS_URL = isEdge ? "edge://extensions/shortcuts" : "chrome://extensi
 const BOOLEAN_KEYS = [
   "openTabIfNone",
   "showStateBadge",
-  "notifyOnTrackChange",
-  "notifyOnlyWhenHidden",
   "openPanelOnTrackChange",
 ] as const;
 
@@ -123,44 +121,7 @@ function syncDependents(form: HTMLFormElement): void {
   }
 }
 
-/**
- * Fire a notification on demand and report what the browser said, so a user
- * who never sees one can tell whether Windows or the browser is blocking them.
- */
-async function testNotification(status: HTMLElement): Promise<void> {
-  status.textContent = "Sending…";
-  const level = await new Promise<string>((resolve) =>
-    chrome.notifications.getPermissionLevel((l) => resolve(l)),
-  );
-  if (level === "denied") {
-    status.textContent =
-      "Notifications are blocked for this extension in the browser's settings.";
-    return;
-  }
-  const id = "sc-shortcuts/test";
-  const error = await new Promise<string | undefined>((resolve) =>
-    chrome.notifications.create(
-      id,
-      {
-        type: "basic",
-        iconUrl: chrome.runtime.getURL("icon/128.png"),
-        title: "Shortcuts for SoundCloud",
-        message: "Notifications are working.",
-        contextMessage: "Test notification",
-      },
-      () => resolve(chrome.runtime.lastError?.message),
-    ),
-  );
-  status.textContent = error
-    ? `The browser refused it: ${error}`
-    : "Sent. If nothing appeared, Windows is hiding notifications from the browser (check Settings > System > Notifications, and Do not disturb).";
-}
-
 async function init(): Promise<void> {
-  const notificationStatus = document.querySelector<HTMLElement>("#notification-status");
-  document.querySelector("#test-notification")?.addEventListener("click", () => {
-    if (notificationStatus) void testNotification(notificationStatus);
-  });
 
   document.querySelector("#open-shortcuts")?.addEventListener("click", () => {
     void chrome.tabs.create({ url: SHORTCUTS_URL });

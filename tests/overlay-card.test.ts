@@ -23,7 +23,12 @@ const track: NowPlaying = {
 };
 
 function make(): { card: ReturnType<typeof createOverlayCard>; handlers: OverlayHandlers } {
-  const handlers: OverlayHandlers = { onCommand: vi.fn(), onDismiss: vi.fn(), onOpen: vi.fn() };
+  const handlers: OverlayHandlers = {
+    onCommand: vi.fn(),
+    onSeek: vi.fn(),
+    onDismiss: vi.fn(),
+    onOpen: vi.fn(),
+  };
   const card = createOverlayCard(handlers);
   document.body.append(card.host);
   return { card, handlers };
@@ -71,6 +76,21 @@ describe("overlay card", () => {
     const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     q(card, ".play").dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("shows the times and seeks when the waveform is clicked", () => {
+    const { card, handlers } = make();
+    card.update({ ...track, playing: false, position: 75 });
+    const sr = card.host.shadowRoot!;
+    expect(sr.querySelector(".time")!.textContent).toBe("1:15");
+    expect(sr.querySelector(".time.total")!.textContent).toBe("5:00");
+    const canvas = sr.querySelector("canvas")!;
+    canvas.getBoundingClientRect = () => ({ left: 0, width: 200 }) as DOMRect;
+    sr.querySelector<HTMLElement>(".wave")!.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, clientX: 50 }),
+    );
+    expect(handlers.onSeek).toHaveBeenCalledWith(0.25);
+    expect(sr.querySelector(".time")!.textContent).toBe("1:15");
   });
 
   it("is hidden until shown", () => {
