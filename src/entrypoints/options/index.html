@@ -17,6 +17,23 @@
         </div>
       </header>
 
+      <section id="onboarding" class="card" hidden>
+        <h2>See what's playing without leaving your work</h2>
+        <p>
+          When a new track starts, a small now-playing card can slide into the corner of the page you are
+          looking at, with the artwork, title, artist, and play, next and like buttons. It fades out on its
+          own and never takes keyboard focus, so you can keep typing.
+        </p>
+        <p class="muted">
+          Drawing it into a page means the browser will ask you to allow the extension on all sites. It still
+          only reads soundcloud.com; other pages are only used to show the card.
+        </p>
+        <p class="buttons">
+          <button id="onboarding-enable" type="button">Turn it on</button>
+          <button id="onboarding-skip" class="secondary" type="button">No thanks</button>
+        </p>
+      </section>
+
       <section>
         <h2>Keyboard shortcuts</h2>
         <p>
@@ -89,13 +106,17 @@
           <div class="group">
             <label class="check">
               <input name="openPanelOnTrackChange" type="checkbox" />
-              <span>Show the now-playing panel in a small floating window when a new track starts <span class="muted">(it does not take focus)</span></span>
+              <span>Show a now-playing card in the corner of the page you are viewing when a new track starts <span class="muted">(needs access to all sites; it never takes focus)</span></span>
             </label>
             <div class="sub" data-depends="openPanelOnTrackChange">
+              <p id="overlay-permission" class="warning" hidden>
+                The browser has not allowed the extension on other sites, so the card cannot appear.
+                <button id="overlay-allow" type="button">Allow</button>
+              </p>
               <div class="field inline">
-                <label for="panelAutoCloseSeconds">Close it again after</label>
+                <label for="panelAutoCloseSeconds">Fade it out after</label>
                 <input id="panelAutoCloseSeconds" name="panelAutoCloseSeconds" type="number" min="0" max="60" step="1" />
-                <span class="muted">seconds, 0 keeps it open until you dismiss it</span>
+                <span class="muted">seconds, 0 keeps it until you dismiss it</span>
               </div>
             </div>
           </div>

@@ -13,10 +13,19 @@ export interface Settings {
   notifyOnlyWhenHidden: boolean;
   /** Show play/pause state on the toolbar icon badge. */
   showStateBadge: boolean;
-  /** Open the now-playing panel itself when a new track starts. */
+  /** Draw a now-playing card into the page being viewed when a new track starts. */
   openPanelOnTrackChange: boolean;
-  /** Seconds before an automatically opened panel closes itself; 0 keeps it open. */
+  /** Seconds before the card fades out again; 0 keeps it until dismissed. */
   panelAutoCloseSeconds: number;
+  /** The user has answered the one-time prompt about the in-page card. */
+  overlayPrompted: boolean;
+}
+
+/** Host access the in-page card needs: it is drawn into any page. */
+export const OVERLAY_PERMISSION: chrome.permissions.Permissions = { origins: ["<all_urls>"] };
+
+export function hasOverlayPermission(): Promise<boolean> {
+  return chrome.permissions.contains(OVERLAY_PERMISSION);
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -26,8 +35,9 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyOnTrackChange: true,
   notifyOnlyWhenHidden: false,
   showStateBadge: true,
-  openPanelOnTrackChange: true,
+  openPanelOnTrackChange: false,
   panelAutoCloseSeconds: 5,
+  overlayPrompted: false,
 };
 
 const KEY = "settings";
@@ -47,6 +57,7 @@ const BOOLEAN_KEYS = [
   "notifyOnlyWhenHidden",
   "showStateBadge",
   "openPanelOnTrackChange",
+  "overlayPrompted",
 ] as const;
 
 /** Merge stored values over defaults and reject out-of-range values. */

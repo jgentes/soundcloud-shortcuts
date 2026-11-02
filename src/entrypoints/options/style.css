@@ -98,6 +98,36 @@ kbd {
   font-style: italic;
 }
 
+.card {
+  margin-top: 20px;
+  padding: 14px 18px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+}
+.card h2 {
+  margin-top: 0;
+  border: 0;
+  padding: 0;
+}
+.buttons {
+  display: flex;
+  gap: 8px;
+}
+button.secondary {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--fg);
+}
+.warning {
+  color: var(--accent);
+  font-size: 13px;
+}
+.warning button {
+  margin-left: 6px;
+  padding: 2px 10px;
+}
+
 /* ---- form ---- */
 .field {
   display: flex;

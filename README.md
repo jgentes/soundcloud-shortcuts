@@ -31,15 +31,16 @@ Remap or bind any of them at `chrome://extensions/shortcuts` or `edge://extensio
 ## Now playing
 
 - The toolbar icon shows a small play/pause mark and opens a panel with artwork, title, artist, transport controls, like, repost, mute, and a SoundCloud-style waveform. Hover it for the time at the cursor; click to seek.
-- When a new track starts, the panel appears in a small floating window for a few seconds without taking focus from what you are doing, and a system notification shows the artwork, title and artist with Next and Like buttons. Both can be turned off, and the notification can be limited to when you are not looking at the SoundCloud tab.
+- When a new track starts, a system notification shows the artwork, title and artist with Next and Like buttons. It can be turned off or limited to when you are not looking at the SoundCloud tab.
+- Optionally, a small now-playing card slides into the corner of the page you are looking at when a track changes, with play, next and like buttons, and fades out after a few seconds. It is drawn into the page itself, so it never takes keyboard focus. Because it can appear on any page, the browser asks once to allow the extension on all sites; the extension still only reads soundcloud.com. You are asked about it when the extension is installed, and it can be changed in the settings.
 
 SoundCloud's player bar no longer shows whether the current track is reposted, so the panel reads that from the track's own page when it is open, and otherwise remembers your own repost toggles. A track you reposted before installing shows as not reposted until you open its page.
 
-Settings (gear in the panel): which SoundCloud tab receives commands when several are open, seek step, open soundcloud.com if no tab exists, notification and badge toggles.
+Settings (gear in the panel): which SoundCloud tab receives commands when several are open, seek step, open soundcloud.com if no tab exists, notification, now-playing card and badge toggles.
 
 ## Privacy
 
-No data is collected or sent anywhere. The extension only talks to the soundcloud.com tab in your browser. Waveform peaks and artwork for the current track are fetched from SoundCloud's own CDN by the page, exactly as the site does. Permissions: `scripting` (to reach the player if the page loaded before the extension), `storage` (your settings and the current track), `notifications` (new-track alerts), and access to `https://soundcloud.com/*`.
+No data is collected or sent anywhere. The extension only talks to the soundcloud.com tab in your browser. Waveform peaks and artwork for the current track are fetched from SoundCloud's own CDN by the page, exactly as the site does. Permissions: `scripting` (to reach the player if the page loaded before the extension), `storage` (your settings and the current track), `notifications` (new-track alerts), and access to `https://soundcloud.com/*`. Access to all sites is optional and only requested if you turn on the now-playing card; it is used solely to draw the card into the page you are viewing.
 
 ## Development
 

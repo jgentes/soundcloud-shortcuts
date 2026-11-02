@@ -6,6 +6,14 @@ import { defineConfig } from "wxt";
 // commands ship unbound and can be bound by the user.
 export default defineConfig({
   srcDir: "src",
+  hooks: {
+    "build:manifestGenerated": (_wxt, manifest) => {
+      // WXT copies the overlay script's matches into host_permissions even
+      // though it is injected at runtime. Keep <all_urls> optional only, so
+      // installing does not warn about access to all sites.
+      manifest.host_permissions = manifest.host_permissions?.filter((p) => p !== "<all_urls>");
+    },
+  },
   manifest: {
     name: "Shortcuts for SoundCloud",
     short_name: "SC Shortcuts",
@@ -14,6 +22,9 @@ export default defineConfig({
     homepage_url: "https://github.com/jgentes/soundcloud-shortcuts",
     permissions: ["scripting", "storage", "notifications"],
     host_permissions: ["https://soundcloud.com/*"],
+    // Granted only if the user turns on the in-page now-playing card, which
+    // is drawn into whatever page they are looking at when a track changes.
+    optional_host_permissions: ["<all_urls>"],
     minimum_chrome_version: "116",
     action: {
       default_title: "Shortcuts for SoundCloud",

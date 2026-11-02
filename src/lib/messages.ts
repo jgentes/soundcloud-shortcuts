@@ -58,7 +58,21 @@ export interface WaveformMessage {
   waveform: Waveform;
 }
 
-/** Popup → worker: user pressed a control. */
+/** Worker → overlay script: show the card for a track that just started. */
+export interface OverlayShowMessage {
+  type: "sc-shortcuts/overlay-show";
+  state: NowPlaying;
+  /** Seconds until the card hides itself; 0 keeps it until dismissed. */
+  closeAfter: number;
+}
+
+/** Worker → overlay script: the track state changed while the card may be visible. */
+export interface OverlayStateMessage {
+  type: "sc-shortcuts/overlay-state";
+  state: NowPlaying | null;
+}
+
+/** Popup / overlay → worker: user pressed a control. */
 export type InvokeMessage =
   | { type: "sc-shortcuts/invoke"; command: Command }
   | { type: "sc-shortcuts/invoke"; seekTo: number };
@@ -69,6 +83,8 @@ export type Message =
   | PingMessage
   | StateMessage
   | WaveformMessage
+  | OverlayShowMessage
+  | OverlayStateMessage
   | InvokeMessage;
 
 export interface CommandResult {

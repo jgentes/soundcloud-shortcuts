@@ -59,6 +59,7 @@ window.chrome = {
   },
   runtime: { sendMessage: async () => ({ ok: true }), openOptionsPage() {}, getURL: (p) => p, getManifest: () => ({ version: "1.1.0" }) },
   tabs: { create() {} },
+  permissions: { contains: async () => true, request: async () => true },
   commands: { getAll: async () => [
     { name: "play-pause", description: "Play / pause", shortcut: "Alt+Shift+P" },
     { name: "next", description: "Next track", shortcut: "Alt+Shift+Period" },
@@ -78,7 +79,7 @@ async function previewOf(file, settings) {
   return html.replace('<script type="module"', stub(settings) + '<script type="module"', 1).replace(/src="\/icon\//g, 'src="icon/');
 }
 await writeFile(join(build, "popup-preview.html"), await previewOf("popup.html"));
-await writeFile(join(build, "options-preview.html"), await previewOf("options.html", { openPanelOnTrackChange: true }));
+await writeFile(join(build, "options-preview.html"), await previewOf("options.html", { openPanelOnTrackChange: true, overlayPrompted: true }));
 
 /* ---------- static server over the build dir + scenes ---------- */
 

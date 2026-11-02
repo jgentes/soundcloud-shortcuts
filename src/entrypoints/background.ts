@@ -6,12 +6,12 @@ import {
   type CommandMessage,
   type CommandResult,
   type Message,
+  type OverlayShowMessage,
   type SeekToMessage,
 } from "@/lib/messages";
-import { loadSettings, type Settings } from "@/lib/settings";
+import { hasOverlayPermission, loadSettings, type Settings } from "@/lib/settings";
 import {
-  AUTO_OPEN_KEY,
-  TOAST_WINDOW_KEY,
+  OVERLAY_TAB_KEY,
   loadState,
   rememberWaveform,
   saveState,
@@ -23,6 +23,7 @@ import { SOUNDCLOUD_URL_PATTERN, pickTargetTab } from "@/lib/tab-picker";
 
 const SOUNDCLOUD_HOME = "https://soundcloud.com/";
 const CONTENT_SCRIPT = "content-scripts/soundcloud.js";
+const OVERLAY_SCRIPT = "content-scripts/overlay.js";
 const NOTIFICATION_ID = "sc-shortcuts/now-playing";
 
 export default defineBackground(() => {
@@ -49,14 +50,10 @@ export default defineBackground(() => {
     }
   });
 
-  chrome.windows.onRemoved.addListener((windowId) => {
-    void chrome.storage.session.get(TOAST_WINDOW_KEY).then((stored) => {
-      if (stored[TOAST_WINDOW_KEY] === windowId) return chrome.storage.session.remove(TOAST_WINDOW_KEY);
-    });
-  });
-
   chrome.tabs.onRemoved.addListener((tabId) => {
     void (async () => {
+      const overlay = await chrome.storage.session.get(OVERLAY_TAB_KEY);
+      if (overlay[OVERLAY_TAB_KEY] === tabId) await chrome.storage.session.remove(OVERLAY_TAB_KEY);
       const state = await loadState();
       if (state.tabId === tabId) {
         await saveState({ ...state, nowPlaying: null, tabId: null });
@@ -78,12 +75,20 @@ export default defineBackground(() => {
 
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") void chrome.runtime.openOptionsPage();
+    // Existing users get the one-time prompt for the in-page card too.
+    if (details.reason === "update") void promptForOverlayOnce();
     // Tabs that were already open keep an orphaned copy of the old content
     // script, so inject the new one to resume now-playing reports. Not on a
     // browser update: restored tabs load their own copy then.
     if (details.reason === "install" || details.reason === "update") void injectIntoOpenTabs();
   });
 });
+
+async function promptForOverlayOnce(): Promise<void> {
+  const settings = await loadSettings();
+  if (settings.overlayPrompted) return;
+  await chrome.runtime.openOptionsPage();
+}
 
 /* ---------------- commands ---------------- */
 
@@ -199,73 +204,81 @@ async function onStateReport(tabId: number, incoming: NowPlaying | null): Promis
       const result = await notifyTrack(tabId, incoming, settings);
       if (!result.ok) console.warn("[sc-shortcuts] notification failed:", result.detail);
     }
-    if (settings.openPanelOnTrackChange) await openPanel(settings);
-  } else if (incoming?.artworkData && incoming.trackKey === next.notifiedKey) {
-    // Artwork arrived after the notification was shown; refresh its icon.
-    await updateNotificationIcon(incoming);
+    if (settings.openPanelOnTrackChange) await showOverlay(settings, incoming);
+  } else {
+    if (incoming?.artworkData && incoming.trackKey === next.notifiedKey) {
+      // Artwork arrived after the notification was shown; refresh its icon.
+      await updateNotificationIcon(incoming);
+    }
+    if (settings.openPanelOnTrackChange && overlayRelevantChange(current.nowPlaying, incoming)) {
+      await updateOverlay(incoming);
+    }
   }
 }
-
-/** Outer size of the floating panel window: the 340x126 panel plus the frame. */
-const TOAST_WIDTH = 356;
-const TOAST_HEIGHT = 168;
-const TOAST_MARGIN = 16;
 
 /**
- * Show the now-playing panel in a small window of its own, without focus.
- * The toolbar popup would steal focus (and close as soon as it lost it), so
- * an unfocused popup-type window is used instead; it closes itself after the
- * configured delay. If one is already open it is reused and its timer reset.
+ * Draw the now-playing card into the page the user is looking at. A window of
+ * its own would either steal focus or sit behind the active window, so the
+ * card goes into the page instead, which needs the optional all-sites access.
  */
-async function openPanel(settings: Settings): Promise<void> {
+async function showOverlay(settings: Settings, state: NowPlaying): Promise<void> {
   try {
-    // Tell the panel it was opened automatically so it can close itself.
-    await chrome.storage.session.set({
-      [AUTO_OPEN_KEY]: { at: Date.now(), closeAfter: settings.panelAutoCloseSeconds },
+    if (!(await hasOverlayPermission())) return;
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.id === undefined || !tab.url || !overlayAllowedOn(tab.url)) return;
+    await chrome.storage.session.set({ [OVERLAY_TAB_KEY]: tab.id });
+    await sendToOverlay(tab.id, {
+      type: "sc-shortcuts/overlay-show",
+      state,
+      closeAfter: settings.panelAutoCloseSeconds,
     });
-    if (await toastWindowExists()) return;
-
-    let left: number | undefined;
-    let top: number | undefined;
-    try {
-      const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
-      if (win.left !== undefined && win.width !== undefined) {
-        left = win.left + win.width - TOAST_WIDTH - TOAST_MARGIN;
-      }
-      if (win.top !== undefined && win.height !== undefined) {
-        top = win.top + win.height - TOAST_HEIGHT - TOAST_MARGIN;
-      }
-    } catch {
-      /* no normal window; the browser picks a position */
-    }
-    const created = await chrome.windows.create({
-      url: chrome.runtime.getURL("popup.html?toast=1"),
-      type: "popup",
-      focused: false,
-      width: TOAST_WIDTH,
-      height: TOAST_HEIGHT,
-      left,
-      top,
-    });
-    if (created?.id !== undefined) {
-      await chrome.storage.session.set({ [TOAST_WINDOW_KEY]: created.id });
-    }
   } catch (error) {
-    console.warn("[sc-shortcuts] could not open panel:", error);
+    console.warn("[sc-shortcuts] could not show the now-playing card:", error);
   }
 }
 
-async function toastWindowExists(): Promise<boolean> {
-  const stored = await chrome.storage.session.get(TOAST_WINDOW_KEY);
-  const id = stored[TOAST_WINDOW_KEY] as number | undefined;
-  if (id === undefined) return false;
+/** Ordinary web pages only: browser pages cannot be scripted, and SoundCloud shows the track itself. */
+function overlayAllowedOn(url: string): boolean {
+  return /^(https?|file):/.test(url) && !/^https:\/\/(www\.)?soundcloud\.com\//.test(url);
+}
+
+/** Keep a visible card in step with play/pause and like changes. */
+async function updateOverlay(state: NowPlaying | null): Promise<void> {
+  const stored = await chrome.storage.session.get(OVERLAY_TAB_KEY);
+  const tabId = stored[OVERLAY_TAB_KEY] as number | undefined;
+  if (tabId === undefined) return;
   try {
-    await chrome.windows.get(id);
-    return true;
+    await chrome.tabs.sendMessage(tabId, { type: "sc-shortcuts/overlay-state", state });
   } catch {
-    await chrome.storage.session.remove(TOAST_WINDOW_KEY);
-    return false;
+    // Tab navigated or closed; stop sending to it.
+    await chrome.storage.session.remove(OVERLAY_TAB_KEY);
   }
+}
+
+/** Deliver to the overlay script, injecting it first when the page has none yet. */
+async function sendToOverlay(tabId: number, message: OverlayShowMessage): Promise<void> {
+  const delivered = async () => {
+    try {
+      const result = (await chrome.tabs.sendMessage(tabId, message)) as CommandResult | undefined;
+      return result?.ok === true;
+    } catch {
+      return false;
+    }
+  };
+  if (await delivered()) return;
+  await chrome.scripting.executeScript({ target: { tabId }, files: [OVERLAY_SCRIPT] });
+  if (!(await delivered())) throw new Error("overlay script did not answer");
+}
+
+/** The card shows play state, artwork, title and like state; ignore position ticks. */
+function overlayRelevantChange(prev: NowPlaying | null, next: NowPlaying | null): boolean {
+  if (!prev || !next) return prev !== next;
+  return (
+    prev.trackKey !== next.trackKey ||
+    prev.playing !== next.playing ||
+    prev.liked !== next.liked ||
+    (prev.artworkData ?? null) !== (next.artworkData ?? null)
+  );
 }
 
 async function onWaveform(_tabId: number, waveform: Waveform): Promise<void> {

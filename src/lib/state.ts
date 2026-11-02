@@ -48,15 +48,8 @@ export interface StoredState {
 
 export const STATE_KEY = "state";
 
-/** Set by the worker right before it opens the popup automatically. */
-export const AUTO_OPEN_KEY = "autoOpen";
-/** Session-storage key holding the id of the floating now-playing window, if open. */
-export const TOAST_WINDOW_KEY = "toastWindowId";
-export interface AutoOpen {
-  at: number;
-  /** Seconds until the popup closes itself; 0 keeps it open. */
-  closeAfter: number;
-}
+/** Session-storage key: tab that was last sent the in-page now-playing card. */
+export const OVERLAY_TAB_KEY = "overlayTabId";
 
 export const EMPTY_STATE: StoredState = { nowPlaying: null, tabId: null, waveforms: {} };
 

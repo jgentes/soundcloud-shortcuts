@@ -1,10 +1,8 @@
 import type { Command, InvokeMessage } from "@/lib/messages";
 import {
-  AUTO_OPEN_KEY,
   STATE_KEY,
   formatTime,
   loadState,
-  type AutoOpen,
   type NowPlaying,
   type StoredState,
 } from "@/lib/state";
@@ -182,55 +180,10 @@ function wireControls(): void {
   });
 }
 
-/** True when this page runs in the floating window the worker opens on track change. */
-const isToast = new URLSearchParams(location.search).has("toast");
-
-async function closeSelf(): Promise<void> {
-  if (!isToast) {
-    window.close();
-    return;
-  }
-  // A window the extension created is closed through the windows API.
-  const win = await chrome.windows.getCurrent();
-  if (win.id !== undefined) await chrome.windows.remove(win.id);
-}
-
-let autoCloseTimer: ReturnType<typeof setTimeout> | null = null;
-let autoCloseCancelled = false;
-
-/**
- * When the worker opened this panel automatically, close it again after the
- * configured delay unless the user moves the mouse into it. In the floating
- * window the worker re-arms the timer for each new track by rewriting the
- * auto-open record, which arrives here as a storage change.
- */
-function armAutoClose(auto: AutoOpen | undefined): void {
-  if (!auto || autoCloseCancelled) return;
-  void chrome.storage.session.remove(AUTO_OPEN_KEY);
-  if (autoCloseTimer) clearTimeout(autoCloseTimer);
-  autoCloseTimer = null;
-  if (Date.now() - auto.at > 5000 || auto.closeAfter <= 0) return;
-  autoCloseTimer = setTimeout(() => void closeSelf(), auto.closeAfter * 1000);
-}
-
-function cancelAutoClose(): void {
-  autoCloseCancelled = true;
-  if (autoCloseTimer) clearTimeout(autoCloseTimer);
-  autoCloseTimer = null;
-}
-
 async function init(): Promise<void> {
-  if (isToast) document.documentElement.classList.add("toast");
   wireControls();
-  document.addEventListener("mouseenter", cancelAutoClose, { once: true });
-  document.addEventListener("mousemove", cancelAutoClose, { once: true });
-  document.addEventListener("keydown", cancelAutoClose, { once: true });
-  const stored = await chrome.storage.session.get(AUTO_OPEN_KEY);
-  armAutoClose(stored[AUTO_OPEN_KEY] as AutoOpen | undefined);
   applyState(await loadState());
   chrome.storage.session.onChanged.addListener((changes) => {
-    const auto = changes[AUTO_OPEN_KEY];
-    if (isToast && auto?.newValue) armAutoClose(auto.newValue as AutoOpen);
     const change = changes[STATE_KEY];
     if (change) {
       applyState({

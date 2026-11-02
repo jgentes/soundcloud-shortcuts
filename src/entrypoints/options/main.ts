@@ -1,4 +1,10 @@
-import { loadSettings, saveSettings, type Settings } from "@/lib/settings";
+import {
+  OVERLAY_PERMISSION,
+  hasOverlayPermission,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from "@/lib/settings";
 
 const isEdge = /\bEdg\//.test(navigator.userAgent);
 const SHORTCUTS_URL = isEdge ? "edge://extensions/shortcuts" : "chrome://extensions/shortcuts";
@@ -10,6 +16,46 @@ const BOOLEAN_KEYS = [
   "notifyOnlyWhenHidden",
   "openPanelOnTrackChange",
 ] as const;
+
+/** Must run from a user gesture (a click or change handler). */
+function requestOverlayPermission(): Promise<boolean> {
+  return chrome.permissions.request(OVERLAY_PERMISSION).catch(() => false);
+}
+
+/** Show the "allow" warning when the card is on but the browser has not granted the access. */
+async function syncOverlayWarning(form: HTMLFormElement): Promise<void> {
+  const warning = document.querySelector<HTMLElement>("#overlay-permission");
+  if (!warning) return;
+  const wanted = input(form, "openPanelOnTrackChange").checked;
+  warning.hidden = !wanted || (await hasOverlayPermission());
+}
+
+/**
+ * One-time prompt for the in-page card, shown until answered so the feature
+ * is not buried in the settings. The worker opens this page on install and
+ * once after the update that introduced the card.
+ */
+async function initOnboarding(form: HTMLFormElement, status: HTMLElement | null): Promise<void> {
+  const card = document.querySelector<HTMLElement>("#onboarding");
+  if (!card) return;
+  const settings = await loadSettings();
+  if (settings.overlayPrompted) return;
+  card.hidden = false;
+
+  const finish = async (enable: boolean) => {
+    const current = await loadSettings();
+    await saveSettings({ ...current, openPanelOnTrackChange: enable, overlayPrompted: true });
+    writeForm(form, await loadSettings());
+    await syncOverlayWarning(form);
+    card.hidden = true;
+    if (status) status.textContent = enable ? "The now-playing card is on." : "";
+  };
+  document.querySelector("#onboarding-enable")?.addEventListener("click", async () => {
+    const granted = await requestOverlayPermission();
+    await finish(granted);
+  });
+  document.querySelector("#onboarding-skip")?.addEventListener("click", () => void finish(false));
+}
 
 async function renderCommands(): Promise<void> {
   const tbody = document.querySelector<HTMLTableSectionElement>("#commands tbody");
@@ -53,6 +99,8 @@ function readForm(form: HTMLFormElement): Settings {
       .value as Settings["tabTargeting"],
     seekStep: Number(input(form, "seekStep").value),
     panelAutoCloseSeconds: Number(input(form, "panelAutoCloseSeconds").value),
+    // Touching any setting counts as having seen the prompt.
+    overlayPrompted: true,
   };
 }
 
@@ -122,14 +170,28 @@ async function init(): Promise<void> {
   const status = document.querySelector<HTMLElement>("#status");
   if (form) {
     writeForm(form, await loadSettings());
-    form.addEventListener("change", async () => {
+    await syncOverlayWarning(form);
+    form.addEventListener("change", async (event) => {
+      const target = event.target as HTMLInputElement | null;
+      if (target?.name === "openPanelOnTrackChange" && target.checked) {
+        // Ask while the click's user gesture is still live.
+        if (!(await hasOverlayPermission()) && !(await requestOverlayPermission())) {
+          target.checked = false;
+        }
+      }
       await saveSettings(readForm(form));
       writeForm(form, await loadSettings());
+      await syncOverlayWarning(form);
       if (status) {
         status.textContent = "Saved";
         setTimeout(() => (status.textContent = ""), 1200);
       }
     });
+    document.querySelector("#overlay-allow")?.addEventListener("click", async () => {
+      await requestOverlayPermission();
+      await syncOverlayWarning(form);
+    });
+    await initOnboarding(form, status);
   }
 
   await renderCommands();
